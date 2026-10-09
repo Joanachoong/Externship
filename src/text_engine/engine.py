@@ -1,3 +1,12 @@
+"""Coordinate text cleaning and keyword-based analysis of DataFrame columns.
+
+``TextAnalysisEngine`` uses the default or a caller-supplied theme dictionary
+to summarize non-null text entries with document counts, theme counts, and
+the 20 most frequent cleaned words. It also compares theme mentions in review
+pros and cons as counts and percentages of each column's non-null entries.
+Theme labels indicate keyword matches, not sentiment predictions.
+"""
+
 from collections import Counter
 import pandas as pd
 
@@ -6,22 +15,33 @@ from .theme import extract_themes
 from .theme_config import THEME_KEYWORDS
 
 class TextAnalysisEngine:
+    """Reuse a theme vocabulary and minimum keyword-hit threshold for analysis."""
+
     def __init__(self, theme_dict: dict = None, min_hits: int = 1):
+        """Use default themes when ``theme_dict`` is omitted or empty.
+
+        ``min_hits`` is the minimum number of matching dictionary entries
+        required to assign a theme to one text entry.
+        """
         self.theme_dict = theme_dict or THEME_KEYWORDS
         self.min_hits = min_hits
 
     def clean(self, text: str) -> str:
+        """Normalize a string with the shared English preprocessing pipeline."""
         return clean(text)
 
     def extract_themes(self, text: str) -> list:
+        """Return theme names matching this engine's vocabulary and threshold."""
         return extract_themes(text, self.theme_dict, self.min_hits)
 
     def analyze_column(self, df: pd.DataFrame, column_name: str) -> dict:
         """
-        Returns:
-          - theme_counts
-          - top_words
-          - n_docs
+        Summarize an existing text column, dropping nulls and converting to strings.
+
+        Return ``n_docs`` (non-null entry count), ``theme_counts`` (a Counter
+        of entries mentioning each theme), and ``top_words`` (up to 20
+        cleaned word/count pairs). An entry can contribute to multiple themes
+        but contributes at most once to each theme.
         """
         texts = df[column_name].dropna().astype(str)
         all_themes = []
@@ -42,7 +62,14 @@ class TextAnalysisEngine:
                           pros_col: str = "review_pros",
                           cons_col: str = "review_cons") -> pd.DataFrame:
         """
-        Side-by-side % of reviews mentioning each theme.
+        Compare theme mentions in two existing review columns.
+
+        Return a DataFrame with theme names, counts, and percentages for pros
+        and cons, sorted by descending cons percentage. Each percentage uses
+        its own column's non-null entry count and is rounded to one decimal.
+        A column with no non-null entries contributes zero percentages. If
+        neither column matches a theme, the final sort raises a KeyError
+        because the empty result has no ``cons_pct`` column.
         """
         pros = self.analyze_column(df, pros_col)
         cons = self.analyze_column(df, cons_col)
