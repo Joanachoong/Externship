@@ -1,0 +1,15 @@
+# Text cleaning, lexical analysis, and notebook plots
+pandas>=2.2,<3
+nltk>=3.9,<4
+spacy>=3.8,<4
+scikit-learn>=1.6,<2
+matplotlib>=3.9,<4
+seaborn>=0.13,<1
+# Optional semantic theme comparison (local inference)
+torch>=2.5,<3
+transformers>=4.41,<6
+sentence-transformers>=3,<6
+bertopic>=0.17,<0.18
+# Reproducible topic discovery components
+umap-learn>=0.5,<0.6
+hdbscan>=0.8,<0.9

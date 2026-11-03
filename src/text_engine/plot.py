@@ -191,7 +191,7 @@ def print_column_summary(df: pd.DataFrame, column: str) -> None:
     print(f"  📋  {label}")
     print(f"{'─'*55}")
     print(f"  Total rows   : {total}")
-    print(f"  Non-null     : {filled}  ({round(100*filled/total,1)}%)")
+    print(f"  Non-null     : {filled}  ({round(100*filled/total,1) if total else 0}%)")
     print(f"  Missing      : {empty}")
     print(f"  Avg length   : {round(avg_len, 1)} characters")
     print(f"{'─'*55}\n")
@@ -208,7 +208,7 @@ def run_eda(df: pd.DataFrame, top_n: int = 30) -> None:
     ─────────────────────────
         import sys
         sys.path.append("..")
-        from text_engine.analyst_text import run_eda
+        from text_engine.plot import run_eda
         run_eda(df)
 
     Parameters
@@ -239,3 +239,27 @@ def run_eda(df: pd.DataFrame, top_n: int = 30) -> None:
         plot_text_length(texts, col)
 
         print("\n")
+
+
+def plot_theme_model_comparison(result):
+    """Display per-column theme percentages from a semantic comparison result.
+
+    BERTopic labels are mapped to the predefined taxonomy; the title explicitly
+    identifies provisional mappings. Discovered novel topics remain in result.
+    """
+    distributions = result['theme_distribution']
+    columns = list(result['coverage']['column'].unique())
+    fig, axes = plt.subplots(2, 2, figsize=(17, 11), squeeze=False)
+    for ax, column in zip(axes.flat, columns):
+        data = distributions[distributions['column'] == column]
+        table = data.pivot(index='theme', columns='method', values='pct')
+        table.plot.barh(ax=ax, color=['#f5a623', '#5b8dd9'])
+        ax.set_title(COLUMN_LABELS.get(column, column))
+        ax.set_xlabel('Percentage of nonblank text entries')
+        ax.set_ylabel('Theme')
+        ax.legend(title='Method')
+    status = result['metadata']['mapping_status'].replace('_', ' ')
+    fig.suptitle(f'Zero-shot and BERTopic — {status}', fontsize=15)
+    plt.tight_layout()
+    plt.show()
+    return fig

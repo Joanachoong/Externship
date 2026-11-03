@@ -2,9 +2,8 @@
 
 ``extract_themes`` cleans each input string and counts matching keyword
 entries per theme. Matching uses substring checks against the cleaned text;
-keywords are used as supplied, without cleaning or word-boundary matching.
-Stemming can therefore prevent unnormalized keywords from matching, while
-short keywords can match inside longer words. Each qualifying theme appears
+keywords are cleaned with the same pipeline before matching.
+Matching remains substring-based, so short keywords can match inside longer words. Each qualifying theme appears
 once in the returned list, in dictionary order.
 """
 
@@ -12,7 +11,7 @@ from .clean import clean
 
 def extract_themes(text: str, theme_dict: dict, min_hits: int = 1) -> list:
     """
-    Return theme names with at least ``min_hits`` matching keyword entries.
+    Return theme names with at least ``min_hits`` matching distinct normalized keywords.
 
     ``text`` must be a string and ``theme_dict`` maps theme names to keyword
     sequences. Repeated occurrences of a keyword do not add extra hits.
@@ -25,7 +24,8 @@ def extract_themes(text: str, theme_dict: dict, min_hits: int = 1) -> list:
 
     found = []
     for theme, keywords in theme_dict.items():
-        hits = sum(1 for kw in keywords if kw in cleaned)
+        normalized = {clean(kw) for kw in keywords}
+        hits = sum(1 for kw in normalized if kw and kw in cleaned)
         if hits >= min_hits:
             found.append(theme)
     return found

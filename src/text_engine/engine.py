@@ -68,8 +68,7 @@ class TextAnalysisEngine:
         and cons, sorted by descending cons percentage. Each percentage uses
         its own column's non-null entry count and is rounded to one decimal.
         A column with no non-null entries contributes zero percentages. If
-        neither column matches a theme, the final sort raises a KeyError
-        because the empty result has no ``cons_pct`` column.
+        neither column matches a theme, return an empty table with the same schema.
         """
         pros = self.analyze_column(df, pros_col)
         cons = self.analyze_column(df, cons_col)
@@ -86,4 +85,5 @@ class TextAnalysisEngine:
                 "cons_count": c_count,
                 "cons_pct": round(100 * c_count / cons["n_docs"], 1) if cons["n_docs"] else 0,
             })
-        return pd.DataFrame(rows).sort_values("cons_pct", ascending=False)
+        return pd.DataFrame(rows, columns=["theme", "pros_count", "pros_pct",
+                                           "cons_count", "cons_pct"]).sort_values("cons_pct", ascending=False)

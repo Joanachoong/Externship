@@ -1,0 +1,6 @@
+/src/txt_engine/plan.md
+
+.venv-theme/
+.cache/
+__pycache__/
+/src/notebook/theme-categorization-result.md

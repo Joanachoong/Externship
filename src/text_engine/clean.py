@@ -17,25 +17,62 @@ Stemming removes meaning from words, e.g.
 -> "classifi product review posit negat base densiti word like"
 """
 
-import spacy
+import re
 import string
-import nltk
+from functools import lru_cache
 import pandas as pd
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer, WordNetLemmatizer
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-
-for pkg in ['stopwords', 'wordnet', 'punkt_tab', 'averaged_perceptron_tagger_eng']:
-    nltk.download(pkg, quiet=True)
-
-STOP_WORDS = set(stopwords.words('english'))
-stemmer = SnowballStemmer("english")
-lemmatizer = WordNetLemmatizer()
+import nltk
 PUNCT_TABLE = str.maketrans('', '', string.punctuation)
+
+
+def download_nltk_resources(download_dir=None):
+    """Explicitly install resources for cleaning and POS tagging.
+
+    No resources are downloaded merely by importing this module. Pass a
+    writable download directory when the default NLTK location is unavailable.
+    """
+    import nltk
+    if download_dir and download_dir not in nltk.data.path:
+        nltk.data.path.insert(0, str(download_dir))
+    for package in ('stopwords', 'wordnet', 'punkt_tab',
+                    'averaged_perceptron_tagger_eng'):
+        if not nltk.download(package, download_dir=download_dir, quiet=True):
+            raise RuntimeError(f"Could not download NLTK resource: {package}")
+
+
+@lru_cache(maxsize=1)
+def _cleaning_resources():
+
+    try:
+        stops = set(stopwords.words('english'))
+        lemma = WordNetLemmatizer()
+        lemma.lemmatize('words')
+    except LookupError as exc:
+        raise LookupError(
+            "Missing NLTK data. Call download_nltk_resources() once before cleaning."
+        ) from exc
+    return stops, SnowballStemmer('english'), lemma
+
+
+def prepare_semantic_text(text):
+    """Normalize whitespace while preserving case, punctuation and negation.
+
+    Use this input for transformer models, not the stemmed output of clean().
+    """
+    if not isinstance(text, str):
+        raise TypeError("text must be a string")
+    return re.sub(r"\s+", " ", text).strip()
 
 
 # ---------- Preprocessing ----------
 def clean(text):
+    """Return stopword-filtered, lemmatized, stemmed English tokens."""
+    if not isinstance(text, str):
+        raise TypeError("text must be a string")
+    STOP_WORDS, stemmer, lemmatizer = _cleaning_resources()
     text = text.lower().translate(PUNCT_TABLE)
     words = text.split()
     words = [w for w in words if w not in STOP_WORDS]
@@ -46,6 +83,7 @@ def clean(text):
 
 # ---------- POS tagging (run on RAW text) ----------
 def pos_tag_text(text):
+
     tokens = nltk.word_tokenize(text)
     return nltk.pos_tag(tokens)          # [('There', 'EX'), ('is', 'VBZ'), ...]
 
@@ -53,9 +91,15 @@ def pos_tag_text(text):
 # ---------- Syntax parsing (run on RAW text) ----------
 # NLTK has no good pretrained parser, so use spaCy:
 
+@lru_cache(maxsize=1)
+def _syntax_model():
+    import spacy
+    return spacy.load("en_core_web_sm")
+
+
 def parse_syntax(text):
-   
-    nlp = spacy.load("en_core_web_sm")
+    """Return raw-text token, POS, dependency, and head tuples."""
+    nlp = _syntax_model()
     doc = nlp(text)
     return [(t.text, t.pos_, t.dep_, t.head.text) for t in doc]
     # e.g. ('thinking', 'VERB', 'csubj', 'makes')
@@ -68,6 +112,7 @@ def text_representation(corpus):
     TF-IDF: weighs each word by how frequent it is in a document versus
             how rare it is across the corpus, so common words matter less.
     """
+
     cleaned = [clean(doc) for doc in corpus]
 
     bow = CountVectorizer()                      # add ngram_range=(1, 2) for bigrams
