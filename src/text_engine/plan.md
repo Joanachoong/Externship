@@ -21,9 +21,3 @@ GIven i had changes the structure in clean.oy , makre sure all the other folder 
 Before we start with theme label. I want you to note down the current performace of them categorization ,good kickstart will be looking through the /notebook/glassdoor.ipynb , obeserve the data pattern in there , the result , include theme distributon across all four column, and top 20 most common words across all column .  note it down in a new doc under  in /notebook/theme-categorization-result.md , put this foler in gitignore
 
 
---TMR 8 OCT to do -
-
-[] work on the model comparison between BERT and Zero_shot-Approach
-[] observe the result and see if any changes is needed
-[] apply 
-[]
