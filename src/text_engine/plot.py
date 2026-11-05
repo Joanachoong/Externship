@@ -8,6 +8,7 @@ The four target DataFrame columns are:
 
 Each section produces:
   • Top-N word frequency bar chart  (cleaned, stopwords removed; default 30)
+  • Combined top-N bigram frequency bar chart across all target columns
   • Theme distribution bar chart      (using THEME_KEYWORDS from theme_config)
   • Text-length histogram             (character count distribution)
 
@@ -95,6 +96,73 @@ def plot_word_frequency(texts: pd.Series, column: str, top_n) -> None:
 
     ax.set_title(f"Top {top_n} Most Common Words\n{label}", fontsize=13, fontweight="bold", pad=12)
     ax.set_xlabel("Words", fontsize=12)
+    ax.set_ylabel("Frequency", fontsize=12)
+    ax.tick_params(axis="x", rotation=45)
+    ax.grid(axis="y", linestyle="--", alpha=0.65)
+    plt.tight_layout()
+    plt.show()
+
+
+# ─────────────────────────────────────────────
+# Helper: Top-N bigram frequency bar chart
+# ─────────────────────────────────────────────
+def plot_bigram_frequency(texts: pd.Series, column: str, top_n) -> None:
+    """Clean text and display the top_n most frequent two-word phrases."""
+    color = PALETTE.get(column, "steelblue")
+    label = COLUMN_LABELS.get(column, column)
+
+    bigrams = []
+    for text in texts.dropna().astype(str):
+        words = clean(text).split()
+        bigrams.extend(zip(words, words[1:]))
+
+    _plot_bigrams(Counter(bigrams).most_common(top_n), top_n, color, label)
+
+
+def plot_combined_bigram_frequency(
+    df: pd.DataFrame, top_n: int = 30, columns: list[str] | None = None
+) -> None:
+    """Display the top bigrams combined across the available target columns."""
+    columns = columns or TARGET_COLUMNS
+    bigrams = []
+    available_columns = [column for column in columns if column in df.columns]
+    for column in available_columns:
+        for text in df[column].dropna().astype(str):
+            words = clean(text).split()
+            bigrams.extend(zip(words, words[1:]))
+
+    common = Counter(bigrams).most_common(top_n)
+    if not common:
+        print("[WARN] No bigrams found across the target columns")
+        return
+
+    _plot_bigrams(
+        common,
+        top_n,
+        "steelblue",
+        "All Glassdoor Review Columns",
+    )
+
+
+def _plot_bigrams(common, top_n: int, color: str, label: str) -> None:
+    phrases = [" ".join(words) for words, _ in common]
+    counts = [count for _, count in common]
+
+    fig, ax = plt.subplots(figsize=(15, 6))
+    bars = ax.bar(phrases, counts, color=color, edgecolor="black", alpha=0.88)
+
+    for bar in bars:
+        yval = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            yval + 0.4,
+            str(int(yval)),
+            ha="center", va="bottom", fontsize=10, fontweight="bold"
+        )
+
+    ax.set_title(f"Top {top_n} Most Common Bigrams\n{label}",
+                 fontsize=13, fontweight="bold", pad=12)
+    ax.set_xlabel("Bigrams", fontsize=12)
     ax.set_ylabel("Frequency", fontsize=12)
     ax.tick_params(axis="x", rotation=45)
     ax.grid(axis="y", linestyle="--", alpha=0.65)
@@ -241,27 +309,25 @@ def run_eda(df: pd.DataFrame, top_n: int = 30) -> None:
     Processes the columns in TARGET_COLUMNS order. Missing columns are skipped,
     allowing partial datasets. Results are printed/shown, not returned or saved.
     """
+    available_columns = [col for col in TARGET_COLUMNS if col in df.columns]
     for col in TARGET_COLUMNS:
         if col not in df.columns:
             print(f"[SKIP] Column '{col}' not found in DataFrame.")
             continue
 
-        # Every chart for this column uses the same source Series, but word
-        # counts clean it while lengths measure its original string values.
         texts = df[col]
-
-        # 1. Numeric summary
         print_column_summary(df, col)
-
-        # 2. Word frequency
         print(f"  → Word Frequency Chart  ({col})")
         plot_word_frequency(texts, col, top_n=top_n)
 
-        # 3. Theme distribution
+    print("  → Combined Bigram Frequency Chart (all four columns)")
+    plot_combined_bigram_frequency(df, top_n=top_n, columns=available_columns)
+
+    for col in available_columns:
+        texts = df[col]
         print(f"  → Theme Distribution Chart  ({col})")
         plot_theme_distribution(texts, col)
 
-        # 4. Text length histogram
         print(f"  → Text Length Histogram  ({col})")
         plot_text_length(texts, col)
 

@@ -61,8 +61,9 @@ The matching rule is:
 A review can receive multiple themes. Each theme is counted once per review;
 repeating a keyword in the review does not add extra hits. Allow multiple theme in one column (no restriction)
 
-The seven default themes are `physical_demand`, `management`, `work_pace`,
-`career_growth`, `pay_benefits`, `schedule_flexibility`, and `culture_people`.
+The default themes are `physical_demand`, `management`, `workplace_politics`,
+`bathroom_access`, `work_pace`, `career_growth`, `pay_benefits`,
+`schedule_flexibility`, and `culture_people`.
 The dictionary is editable in `theme_config.py`.
 
 ### Word frequency and theme percentages
@@ -118,6 +119,7 @@ matrices to train a prediction model or assign themes.
 charts for each available target column:
 
 - A frequency bar chart of the top cleaned words.
+- A combined frequency bar chart of the top cleaned bigrams across all four columns.
 - A theme distribution chart with counts and percentages.
 - A histogram of original text lengths with a median marker.
 
