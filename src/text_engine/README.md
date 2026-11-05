@@ -135,7 +135,9 @@ Matplotlib and Seaborn; the function does not save them or return an analysis ta
 | `theme_config.py` | Defines workplace keyword themes and full-language semantic descriptions. |
 | `engine.py` | Summarizes columns and compares pros and cons. |
 | `plot.py` | Prints exploratory summaries and displays EDA and model-comparison charts. |
-| `model_comparison.py` | Runs uncapped multi-label zero-shot and BERTopic discovery, alignment, and evaluation. |
+| `zero-shot.py` | Scores predefined themes using multilingual zero-shot NLI; exports `classify_zero_shot` through the package. |
+| `_semantic.py` | Shares tokenizer-based chunking between zero-shot classification and BERTopic. |
+| `model_comparison.py` | Calls the zero-shot classifier and runs BERTopic discovery, alignment, and evaluation. |
 
 
 ## Current limitations
@@ -161,6 +163,19 @@ the accuracy of a trained classifier.
 
 
 ## Multi-label zero-shot and BERTopic comparison
+
+Zero-shot classification is implemented separately in `zero-shot.py`. The
+comparison still runs both methods. To score texts independently of BERTopic:
+
+```python
+from text_engine import classify_zero_shot
+
+zero_shot = classify_zero_shot(["Good pay, but unpredictable shifts."])
+scores = zero_shot["scores"]  # One {theme_id: score} dictionary per input text.
+```
+
+The package handles importing the hyphenated filename. Model loading is deferred
+until classification is called; the result also reports loading and inference times.
 
 The final comparison call is in `src/notebook/glassdoor.ipynb`. Its setup locates
 this repository from either the repository root or the notebook directory. Install

@@ -48,6 +48,7 @@ COLUMN_LABELS = {
 
 TARGET_COLUMNS = ["review_cons", "review_pros", "summary", "advice_to_management"]
 
+# This changes plotting defaults for the current Python process/notebook.
 sns.set_theme(style="whitegrid", font_scale=1.05)
 
 
@@ -56,12 +57,17 @@ sns.set_theme(style="whitegrid", font_scale=1.05)
 # ─────────────────────────────────────────────
 def plot_word_frequency(texts: pd.Series, column: str, top_n) -> None:
     """
-    Cleans text, removes stopwords, then plots the top_n most frequent words.
-    Mirrors the sample pattern provided in the brief.
+    Clean text, remove stopwords, and display the top_n most frequent tokens.
+
+    Counts are token occurrences, not numbers of reviews mentioning a word.
+    Repeated words in a long entry contribute repeatedly. Returns None and does
+    not write an image file; entries that clean to nothing contribute no tokens.
     """
     color = PALETTE.get(column, "steelblue")
     label = COLUMN_LABELS.get(column, column)
 
+    # This is the lexical/stemmed view of the corpus, separate from the original
+    # strings used for semantic embeddings and length measurements.
     all_words = " ".join(texts.dropna().astype(str).apply(clean)).split()
     word_freq  = Counter(all_words)
     common     = word_freq.most_common(top_n)
@@ -76,7 +82,8 @@ def plot_word_frequency(texts: pd.Series, column: str, top_n) -> None:
     fig, ax = plt.subplots(figsize=(15, 6))
     bars = ax.bar(words, counts, color=color, edgecolor="black", alpha=0.88)
 
-    # Annotate bar tops
+    # Write exact counts above bars so small differences are visible without
+    # estimating values from the y-axis.
     for bar in bars:
         yval = bar.get_height()
         ax.text(
@@ -102,6 +109,10 @@ def plot_theme_distribution(texts: pd.Series, column: str) -> None:
     """
     Counts how many reviews mention each theme from THEME_KEYWORDS,
     then plots a horizontal bar chart so theme names stay readable.
+
+    One non-null field counts at most once per theme; a field can match several
+    themes. Percentages use this column's non-null count, including blank strings.
+    These are keyword mentions, not discovered topics or measured sentiment.
     """
     color = PALETTE.get(column, "steelblue")
     label = COLUMN_LABELS.get(column, column)
@@ -110,6 +121,7 @@ def plot_theme_distribution(texts: pd.Series, column: str) -> None:
     n_docs = 0
     for text in texts.dropna().astype(str):
         themes = extract_themes(text, THEME_KEYWORDS, min_hits=1)
+        # extract_themes returns each qualifying theme only once per field.
         theme_counter.update(themes)
         n_docs += 1
 
@@ -118,6 +130,7 @@ def plot_theme_distribution(texts: pd.Series, column: str) -> None:
         return
 
     sorted_themes = sorted(theme_counter.items(), key=lambda x: x[1], reverse=True)
+    # Human-readable labels are for display; the underlying IDs are unchanged.
     theme_names   = [t.replace("_", " ").title() for t, _ in sorted_themes]
     theme_counts  = [c for _, c in sorted_themes]
     theme_pcts    = [round(100 * c / n_docs, 1) if n_docs else 0 for c in theme_counts]
@@ -136,6 +149,7 @@ def plot_theme_distribution(texts: pd.Series, column: str) -> None:
     ax.set_title(f"Theme Distribution  (n={n_docs} reviews)\n{label}",
                  fontsize=13, fontweight="bold", pad=12)
     ax.set_xlabel("Review Count Mentioning Theme", fontsize=12)
+    # barh places its first category at the bottom; invert to show largest first.
     ax.invert_yaxis()
     ax.grid(axis="x", linestyle="--", alpha=0.65)
     ax.set_xlim(0, max(theme_counts) * 1.3)
@@ -150,6 +164,9 @@ def plot_text_length(texts: pd.Series, column: str) -> None:
     """
     Plots a histogram of character-length distribution per review text,
     helping identify very short (low-signal) or very long (detailed) entries.
+
+    Length is measured before cleaning and is not the tokenizer length used to
+    decide model chunk sizes. Null entries are excluded; blank strings have length 0.
     """
     color = PALETTE.get(column, "steelblue")
     label = COLUMN_LABELS.get(column, column)
@@ -163,6 +180,7 @@ def plot_text_length(texts: pd.Series, column: str) -> None:
     ax.hist(lengths, bins=30, color=color, edgecolor="black", alpha=0.82)
 
     median_len = lengths.median()
+    # A median marker provides context when a few long reviews skew the histogram.
     ax.axvline(median_len, color="black", linestyle="--", linewidth=1.5,
                label=f"Median: {int(median_len)} chars")
 
@@ -179,7 +197,11 @@ def plot_text_length(texts: pd.Series, column: str) -> None:
 # Helper: Print quick text stats summary
 # ─────────────────────────────────────────────
 def print_column_summary(df: pd.DataFrame, column: str) -> None:
-    """Prints a brief numeric snapshot for a text column."""
+    """Print row count, non-null coverage, missing values, and mean raw length.
+
+    'Missing' means null, not an empty string. Mean length can be NaN when every
+    entry is null. No analysis table is returned and no input values are modified.
+    """
     label  = COLUMN_LABELS.get(column, column)
     series = df[column]
     total  = len(series)
@@ -213,14 +235,19 @@ def run_eda(df: pd.DataFrame, top_n: int = 30) -> None:
 
     Parameters
     ----------
-    df    : The cleaned Glassdoor DataFrame
+    df    : Glassdoor DataFrame with original text fields; helpers clean as needed
     top_n : Number of top words to show per column (default 30)
+
+    Processes the columns in TARGET_COLUMNS order. Missing columns are skipped,
+    allowing partial datasets. Results are printed/shown, not returned or saved.
     """
     for col in TARGET_COLUMNS:
         if col not in df.columns:
             print(f"[SKIP] Column '{col}' not found in DataFrame.")
             continue
 
+        # Every chart for this column uses the same source Series, but word
+        # counts clean it while lengths measure its original string values.
         texts = df[col]
 
         # 1. Numeric summary
@@ -246,18 +273,27 @@ def plot_theme_model_comparison(result):
 
     BERTopic labels are mapped to the predefined taxonomy; the title explicitly
     identifies provisional mappings. Discovered novel topics remain in result.
+
+    Expects compare_theme_models()/apply_topic_mapping() output. The fixed 2x2
+    layout accommodates the four standard text columns. Shows and returns the
+    figure without saving it. Percentages describe each column's nonblank fields.
     """
     distributions = result['theme_distribution']
     columns = list(result['coverage']['column'].unique())
     fig, axes = plt.subplots(2, 2, figsize=(17, 11), squeeze=False)
     for ax, column in zip(axes.flat, columns):
         data = distributions[distributions['column'] == column]
+        # Convert one row per (theme, method) into side-by-side percentage bars.
+        # Only mapped predefined themes appear here; raw novel topics need their
+        # own inspection through result['topics'] and result['predictions'].
         table = data.pivot(index='theme', columns='method', values='pct')
         table.plot.barh(ax=ax, color=['#f5a623', '#5b8dd9'])
         ax.set_title(COLUMN_LABELS.get(column, column))
         ax.set_xlabel('Percentage of nonblank text entries')
         ax.set_ylabel('Theme')
         ax.legend(title='Method')
+    # Keep the mapping status visible so provisional suggestions are not mistaken
+    # for human-approved meanings. This comparison does not demonstrate accuracy.
     status = result['metadata']['mapping_status'].replace('_', ' ')
     fig.suptitle(f'Zero-shot and BERTopic — {status}', fontsize=15)
     plt.tight_layout()

@@ -20,12 +20,20 @@ def extract_themes(text: str, theme_dict: dict, min_hits: int = 1) -> list:
     """
     cleaned = clean(text)
     if not cleaned:
+        # Blank or stopword-only text supplies no lexical evidence for a theme.
         return []
 
     found = []
     for theme, keywords in theme_dict.items():
+        # Normalize both sides identically so e.g. a stemmed review token can
+        # still match its keyword. A set collapses keywords with the same stem,
+        # preventing duplicate vocabulary entries from artificially raising hits.
         normalized = {clean(kw) for kw in keywords}
+        # Each distinct keyword contributes at most one hit, even if repeated in
+        # the review. Empty normalized keywords are ignored. The 'in' operation
+        # does not enforce word boundaries or understand negation/context.
         hits = sum(1 for kw in normalized if kw and kw in cleaned)
         if hits >= min_hits:
+            # No early return: one field can discuss several workplace themes.
             found.append(theme)
     return found

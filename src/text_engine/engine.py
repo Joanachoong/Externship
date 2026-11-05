@@ -24,6 +24,8 @@ class TextAnalysisEngine:
         required to assign a theme to one text entry.
         """
         self.theme_dict = theme_dict or THEME_KEYWORDS
+        # The engine stores configuration only; initialization does not train or
+        # load a prediction model. Matching is delegated to the keyword helper.
         self.min_hits = min_hits
 
     def clean(self, text: str) -> str:
@@ -43,12 +45,16 @@ class TextAnalysisEngine:
         cleaned word/count pairs). An entry can contribute to multiple themes
         but contributes at most once to each theme.
         """
+        # Preserve the lexical baseline's denominator: nulls are excluded but
+        # non-null empty strings still count as documents (unlike semantic input).
         texts = df[column_name].dropna().astype(str)
         all_themes = []
         all_words = []
 
         for text in texts:
             themes = self.extract_themes(text)
+            # Theme labels are unique per field, while repeated words contribute
+            # repeated tokens. These counters therefore measure different units.
             all_themes.extend(themes)
             all_words.extend(self.clean(text).split())
 
@@ -73,11 +79,14 @@ class TextAnalysisEngine:
         pros = self.analyze_column(df, pros_col)
         cons = self.analyze_column(df, cons_col)
 
+        # Include themes seen on either side; a missing Counter entry is zero.
         themes = sorted(set(pros["theme_counts"]) | set(cons["theme_counts"]))
         rows = []
         for theme in themes:
             p_count = pros["theme_counts"].get(theme, 0)
             c_count = cons["theme_counts"].get(theme, 0)
+            # Each column has its own denominator. An entry can match multiple
+            # themes, so the percentages across themes need not sum to 100%.
             rows.append({
                 "theme": theme,
                 "pros_count": p_count,
@@ -85,5 +94,7 @@ class TextAnalysisEngine:
                 "cons_count": c_count,
                 "cons_pct": round(100 * c_count / cons["n_docs"], 1) if cons["n_docs"] else 0,
             })
+        # Explicit columns keep sorting safe even when neither side matches any
+        # theme. Pros/cons polarity comes from the columns, not a sentiment model.
         return pd.DataFrame(rows, columns=["theme", "pros_count", "pros_pct",
                                            "cons_count", "cons_pct"]).sort_values("cons_pct", ascending=False)
